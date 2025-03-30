@@ -632,14 +632,42 @@ def build(image_set, args):
         strong_aug = args.strong_aug
     except:
         strong_aug = False
-    dataset = CocoDetection(img_folder, ann_file, 
-            transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args), 
+    dataset = CocoDetection(img_folder, ann_file,
+            transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args),
             return_masks=args.masks,
             aux_target_hacks=aux_target_hacks_list,
         )
 
     return dataset
 
+def build_vin(image_set, args):
+    root = Path(args.coco_path)
+    mode = 'instances'
+
+    PATHS = {
+        "train": (root / "vinbigdata", Path("/kaggle/working/annotation.json")),
+        "test": (root / "vinbigdata", Path("/kaggle/working/annotation_test.json")),
+    }
+
+    aux_target_hacks_list = get_aux_target_hacks_list(image_set, args)
+    img_folder, ann_file = PATHS[image_set]
+
+    if os.environ.get('DATA_COPY_SHILONG') == 'INFO':
+        preparing_dataset(dict(img_folder=img_folder, ann_file=ann_file), image_set, args)
+
+    try:
+        strong_aug = args.strong_aug
+    except:
+        strong_aug = False
+
+    dataset = CocoDetection(
+        img_folder, ann_file,
+        transforms=make_coco_transforms(image_set, fix_size=args.fix_size, strong_aug=strong_aug, args=args),
+        return_masks=args.masks,
+        aux_target_hacks=aux_target_hacks_list,
+    )
+
+    return dataset
 
 
 if __name__ == "__main__":
