@@ -645,7 +645,7 @@ def build_vin(image_set, args):
     mode = 'instances'
 
     PATHS = {
-        "train": (root / "vinbigdata/train", Path("/kaggle/working/annotation.json")),
+        "train": (root / "vinbigdata/train", Path("/kaggle/working/annotation_coco.json")),
         "test": (root / "vinbigdata/test", Path("/kaggle/working/annotation_test.json")),
     }
 
