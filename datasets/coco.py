@@ -645,8 +645,8 @@ def build_vin(image_set, args):
     mode = 'instances'
 
     PATHS = {
-        "train": (root / "vinbigdata", Path("/kaggle/working/annotation.json")),
-        "test": (root / "vinbigdata", Path("/kaggle/working/annotation_test.json")),
+        "train": (root / "vinbigdata/train", Path("/kaggle/working/annotation.json")),
+        "test": (root / "vinbigdata/test", Path("/kaggle/working/annotation_test.json")),
     }
 
     aux_target_hacks_list = get_aux_target_hacks_list(image_set, args)
