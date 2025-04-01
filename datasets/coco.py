@@ -613,11 +613,8 @@ def build(image_set, args):
     root = Path(args.coco_path)
     mode = 'instances'
     PATHS = {
-        "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-        "train_reg": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-        "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
-        "eval_debug": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
-        "test": (root / "test2017", root / "annotations" / 'image_info_test-dev2017.json' ),
+        "train": (root / "vinbigdata/train", Path("/kaggle/working/annotations_coco.json")),
+        "test": (root / "vinbigdata/test", Path("/kaggle/working/annotation_test.json")),
     }
 
     # add some hooks to datasets
