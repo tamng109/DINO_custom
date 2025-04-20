@@ -639,11 +639,16 @@ def build(image_set, args):
 
 def build_vin(image_set, args):
     root = Path(args.coco_path)
-    mode = 'instances'
 
     PATHS = {
-        "train": (root / "vinbigdata/train", Path("/kaggle/working/annotations_coco.json")),
-        "test": (root / "vinbigdata/test", Path("/kaggle/working/annotation_test.json")),
+        "train": (root / "vinbigdata/train/train", Path("/kaggle/working/DINO_custom/annotations/annotations_train.json")),
+        "val": (root / "vinbigdata/train/train", Path("/kaggle/working/DINO_custom/annotations/annotations_val.json")),
+        "test": (root / "vinbigdata/train/train", Path("/kaggle/working/DINO_custom/annotations/annotation_test.json")),
+
+        # Custom for VinBigData
+        # "vinbig_train": (root / "vinbig" / "train", root / "vinbig" / "annotations" / "annotation_train.json"),
+        # "vinbig_val": (root / "vinbig" / "train", root / "vinbig" / "annotations" / "annotation_val.json"),
+        # "vinbig_test": (root / "vinbig" / "train", root / "vinbig" / "annotations" / "annotation_val.json"),
     }
 
     aux_target_hacks_list = get_aux_target_hacks_list(image_set, args)
