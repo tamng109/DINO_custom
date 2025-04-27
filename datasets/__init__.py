@@ -3,7 +3,8 @@ import torch.utils.data
 import torchvision
 
 
-from .coco import build as build_coco, build_vin
+from .coco import build as build_coco
+from .coco import build_vin
 
 
 def get_coco_api_from_dataset(dataset):
