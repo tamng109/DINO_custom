@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 import os, sys
 import numpy as np
+np.float = float
+
 
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
