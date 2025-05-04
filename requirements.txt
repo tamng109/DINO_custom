@@ -7,5 +7,5 @@ git+https://github.com/cocodataset/panopticapi.git#egg=panopticapi
 scipy
 termcolor
 addict
-yapf
+yapf==0.32.0
 timm

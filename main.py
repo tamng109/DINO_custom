@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 import os, sys
 import numpy as np
+np.float = float
+
 
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
@@ -165,7 +167,7 @@ def main(args):
     
 
     dataset_train = build_dataset(image_set='train', args=args)
-    dataset_val = build_dataset(image_set='test', args=args)
+    dataset_val = build_dataset(image_set='val', args=args)
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)
