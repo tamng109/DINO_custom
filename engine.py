@@ -21,7 +21,7 @@ from datasets.panoptic_eval import PanopticEvaluator
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, max_norm: float = 0,
-                    wo_class_error=False, lr_scheduler=None, args=None, logger=None, ema_m=None):
+                    wo_class_error=False, lr_scheduler=None, args=None, logger=None, ema_m=None, warmup_epochs=2):
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
     try:
@@ -83,7 +83,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             # original backward function
             optimizer.zero_grad()
             losses.backward()
-            if epoch >= args.prune_start_epoch:
+            if epoch >= warmup_epochs:
                 with torch.no_grad():
                     for module in model.modules():
                         if isinstance(module, MSDeformAttn):
