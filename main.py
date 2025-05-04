@@ -269,6 +269,8 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
+    warmup_epochs = 3  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
+    prune_ratio = 0.25
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
         if args.distributed:
@@ -282,18 +284,13 @@ def main(args):
         if not args.onecyclelr:
             lr_scheduler.step()
         # --- 3. Prune least-important heads trên encoder ---
-        # Chỉ prune từ epoch thứ `warmup_epochs` trở đi để gradient đủ ổn định
-        warmup_epochs = 2
-        prune_ratio = 0.25  # prune 25% head yếu nhất
+            # --- Bắt đầu prune từ epoch thứ 3 trở đi ---
         if epoch + 1 >= warmup_epochs:
-            # Duyệt qua từng layer của encoder
             for enc_layer in model.transformer.encoder.layers:
-                    # Giả sử enc_layer.self_attn là instance của class MultiheadAttention
-                mha = enc_layer.self_attn
-                    # Tự động chọn & đánh dấu prune
-                mha.prune_least_important_heads(ratio=prune_ratio)
-                    # Nếu muốn thu thập lại importance cho lần prune tiếp theo:
-                mha.head_importance.zero_()
+                # enc_layer.self_attn là instance của MSDeformAttn
+                attn = enc_layer.self_attn
+                attn.prune_least_important_heads(prune_ratio)
+                attn.head_importance.zero_()
 
 
         if args.output_dir:

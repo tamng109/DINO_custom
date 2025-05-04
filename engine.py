@@ -8,6 +8,7 @@ import os
 import sys
 from typing import Iterable
 
+from models.dino.ops.modules import MSDeformAttn
 from util.utils import slprint, to_device
 
 import torch
@@ -19,7 +20,7 @@ from datasets.panoptic_eval import PanopticEvaluator
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, max_norm: float = 0, 
+                    device: torch.device, epoch: int, max_norm: float = 0,
                     wo_class_error=False, lr_scheduler=None, args=None, logger=None, ema_m=None):
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
@@ -48,7 +49,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                 outputs = model(samples, targets)
             else:
                 outputs = model(samples)
-        
+
             loss_dict = criterion(outputs, targets)
             weight_dict = criterion.weight_dict
 
@@ -69,7 +70,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             print(loss_dict_reduced)
             sys.exit(1)
 
-
         # amp backward function
         if args.amp:
             optimizer.zero_grad()
@@ -83,6 +83,16 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             # original backward function
             optimizer.zero_grad()
             losses.backward()
+            if epoch >= args.prune_start_epoch:
+                with torch.no_grad():
+                    for module in model.modules():
+                        if isinstance(module, MSDeformAttn):
+                            grad = module.attention_weights.weight.grad
+                            if grad is not None:
+                                for h in range(module.n_heads):
+                                    head_grad = grad[:, h::module.n_heads]
+                                    module.head_importance[h] += head_grad.abs().sum().item()
+
             if max_norm > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
             optimizer.step()
@@ -101,7 +111,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         _cnt += 1
         if args.debug:
             if _cnt % 15 == 0:
-                print("BREAK!"*5)
+                print("BREAK!" * 5)
                 break
 
     if getattr(criterion, 'loss_weight_decay', False):
@@ -109,13 +119,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     if getattr(criterion, 'tuning_matching', False):
         criterion.tuning_matching(epoch)
 
-
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
     if getattr(criterion, 'loss_weight_decay', False):
-        resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
+        resstat.update({f'weight_{k}': v for k, v in criterion.weight_dict.items()})
     return resstat
 
 

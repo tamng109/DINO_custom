@@ -58,6 +58,8 @@ class MSDeformAttn(nn.Module):
         self.output_proj = nn.Linear(d_model, d_model)
 
         self._reset_parameters()
+        self.register_buffer("head_mask", torch.ones(self.n_heads))  # 1: keep, 0: prune
+        self.register_buffer("head_importance", torch.zeros(self.n_heads))  # accumulate gradient-based importance
 
     def _reset_parameters(self):
         constant_(self.sampling_offsets.weight.data, 0.)
@@ -74,6 +76,18 @@ class MSDeformAttn(nn.Module):
         constant_(self.value_proj.bias.data, 0.)
         xavier_uniform_(self.output_proj.weight.data)
         constant_(self.output_proj.bias.data, 0.)
+
+    def prune_least_important_heads(self, ratio=0.25):
+        """
+        Prune the least important attention heads based on accumulated importance.
+        `ratio` is the fraction of heads to prune (e.g., 0.25 means prune 25% heads).
+        """
+        num_to_prune = int(self.n_heads * ratio)
+        if num_to_prune == 0:
+            return
+        _, indices = torch.topk(self.head_importance, num_to_prune, largest=False)
+        self.head_mask[indices] = 0
+        print(f"[MSDeformAttn] Pruned heads: {indices.tolist()}")
 
     def forward(self, query, reference_points, input_flatten, input_spatial_shapes, input_level_start_index, input_padding_mask=None):
         """
@@ -97,7 +111,19 @@ class MSDeformAttn(nn.Module):
         value = value.view(N, Len_in, self.n_heads, self.d_model // self.n_heads)
         sampling_offsets = self.sampling_offsets(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
         attention_weights = self.attention_weights(query).view(N, Len_q, self.n_heads, self.n_levels * self.n_points)
-        attention_weights = F.softmax(attention_weights, -1).view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
+        attention_weights = attention_weights.view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
+
+        # Apply head mask (broadcast to shape)
+        head_mask = self.head_mask.view(1, 1, self.n_heads, 1, 1)
+        attention_weights = attention_weights * head_mask  # zero out pruned heads
+
+        attention_weights = F.softmax(attention_weights, -1)
+        # Compute importance score: L1 norm of attention weights
+        with torch.no_grad():
+            # importance shape: (N, Len_q, n_heads)
+            importance = attention_weights.abs().sum(dim=[1, 3, 4])  # sum over query, levels, and points
+            self.head_importance += importance.sum(dim=0)  # sum over batch
+
         # N, Len_q, n_heads, n_levels, n_points, 2
         if reference_points.shape[-1] == 2:
             offset_normalizer = torch.stack([input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
@@ -124,3 +150,4 @@ class MSDeformAttn(nn.Module):
             value, input_spatial_shapes, input_level_start_index, sampling_locations, attention_weights, self.im2col_step)
         output = self.output_proj(output)
         return output
+
