@@ -107,6 +107,8 @@ class MultiheadAttention(Module):
         self.add_zero_attn = add_zero_attn
 
         self._reset_parameters()
+        self.head_importance = torch.zeros(self.num_heads)  # Lưu độ quan trọng của từng head
+        self.pruned_heads = set()
 
     def _reset_parameters(self):
         constant_(self.out_proj.bias, 0.)
@@ -117,6 +119,47 @@ class MultiheadAttention(Module):
             state['_qkv_same_embed_dim'] = True
 
         super(MultiheadAttention, self).__setstate__(state)
+
+    def compute_head_importance(self, grad_output):
+        """
+        Hook function để lưu gradient của output từ các attention heads.
+        """
+        with torch.no_grad():
+            grad_output = grad_output.view(-1, self.num_heads, self.head_dim)  # (B*L, num_heads, head_dim)
+            importance = grad_output.abs().sum(dim=(0, 2))  # (num_heads,)
+            self.head_importance += importance
+
+    def mask_heads(self, head_indices):
+        """Mark heads to prune (mask)."""
+        for h in head_indices:
+            if 0 <= h < self.num_heads:
+                self.pruned_heads.add(h)
+
+    def apply_head_mask(self, attn_output):
+        """
+        Áp dụng mask (set = 0) cho các head đã bị prune.
+        """
+        if len(self.pruned_heads) > 0:
+            B, L, E = attn_output.shape
+            attn_output = attn_output.view(B, L, self.num_heads, self.head_dim)  # (B, L, num_heads, head_dim)
+            for h in self.pruned_heads:
+                attn_output[:, :, h, :] = 0
+            attn_output = attn_output.view(B, L, E)
+        return attn_output
+
+    def prune_least_important_heads(self, ratio: float = 0.25):
+        """
+        Automatically select and prune the lowest-importance heads.
+        ratio: fraction of total heads to prune (0 < ratio < 1).
+        """
+        num_prune = int(self.num_heads * ratio)
+        if num_prune <= 0:
+            return
+        # ensure head_importance is on CPU for torch.topk
+        importance = self.head_importance
+        # get indices of heads with smallest importance
+        _, prune_idx = torch.topk(importance, num_prune, largest=False)
+        self.mask_heads(prune_idx.tolist())
 
     def forward(self, query, key, value, key_padding_mask=None,
                 need_weights=True, attn_mask=None):
@@ -159,7 +202,7 @@ class MultiheadAttention(Module):
           L is the target sequence length, S is the source sequence length.
         """
         if not self._qkv_same_embed_dim:
-            return multi_head_attention_forward(
+            attn_output, attn_weights = multi_head_attention_forward(
                 query, key, value, self.embed_dim, self.num_heads,
                 self.in_proj_weight, self.in_proj_bias,
                 self.bias_k, self.bias_v, self.add_zero_attn,
@@ -169,8 +212,13 @@ class MultiheadAttention(Module):
                 attn_mask=attn_mask, use_separate_proj_weight=True,
                 q_proj_weight=self.q_proj_weight, k_proj_weight=self.k_proj_weight,
                 v_proj_weight=self.v_proj_weight, out_dim=self.vdim)
+            # register gradient hook on attention output
+            attn_output.register_hook(self.compute_head_importance)
+            # apply head mask to zero-out pruned heads
+            attn_output = self.apply_head_mask(attn_output)
+            return attn_output, attn_weights
         else:
-            return multi_head_attention_forward(
+            attn_output, attn_weights = multi_head_attention_forward(
                 query, key, value, self.embed_dim, self.num_heads,
                 self.in_proj_weight, self.in_proj_bias,
                 self.bias_k, self.bias_v, self.add_zero_attn,
@@ -178,6 +226,11 @@ class MultiheadAttention(Module):
                 training=self.training,
                 key_padding_mask=key_padding_mask, need_weights=need_weights,
                 attn_mask=attn_mask, out_dim=self.vdim)
+            # register gradient hook on attention output
+            attn_output.register_hook(self.compute_head_importance)
+            # apply head mask to zero-out pruned heads
+            attn_output = self.apply_head_mask(attn_output)
+            return attn_output, attn_weights
 
 
 def multi_head_attention_forward(query: Tensor,

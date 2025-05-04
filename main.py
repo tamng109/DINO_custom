@@ -11,7 +11,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
-
+from models.dino.attention import MultiheadAttention, multi_head_attention_forward
 from util.get_param_dicts import get_param_dict
 from util.logger import setup_logger
 from util.slconfig import DictAction, SLConfig
@@ -279,6 +279,21 @@ def main(args):
 
         if not args.onecyclelr:
             lr_scheduler.step()
+        # --- 3. Prune least-important heads trên encoder ---
+        # Chỉ prune từ epoch thứ `warmup_epochs` trở đi để gradient đủ ổn định
+        warmup_epochs = 2
+        prune_ratio = 0.25  # prune 25% head yếu nhất
+        if epoch + 1 >= warmup_epochs:
+            # Duyệt qua từng layer của encoder
+            for enc_layer in model.transformer.encoder.layers:
+                    # Giả sử enc_layer.self_attn là instance của class MultiheadAttention
+                mha = enc_layer.self_attn
+                    # Tự động chọn & đánh dấu prune
+                mha.prune_least_important_heads(ratio=prune_ratio)
+                    # Nếu muốn thu thập lại importance cho lần prune tiếp theo:
+                mha.head_importance.zero_()
+
+
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs
