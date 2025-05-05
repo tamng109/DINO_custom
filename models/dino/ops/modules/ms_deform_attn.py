@@ -158,13 +158,18 @@ class MSDeformAttn(nn.Module):
                 imp = attention_weights.abs().sum(dim=[1,3,4])  # (N, n_heads)
                 self.head_importance += imp.sum(dim=0)
         # compute sampling locations as before
-        if reference_points.shape[-1] == 2 and reference_points.ndim == 3:
+        if reference_points.shape[-1] == 2:
             reference_points = reference_points.unsqueeze(2).expand(-1, -1, self.n_levels, -1)
             offset_norm = torch.stack([input_spatial_shapes[...,1], input_spatial_shapes[...,0]], -1)  # shape: (n_levels, 2)
             offset_norm = offset_norm[None, None, None, :, None, :]  # (1, 1, 1, n_levels, 1, 2)
             sampling_locs = reference_points[:, :, None, :, None, :] + sampling_offsets / offset_norm
+        elif reference_points.shape[-1] == 4:
+            # normalized offset
+            offset = sampling_offsets / self.n_points
+            # scale by width and height
+            sampling_locs = reference_points[:, :, None, :, None, :2] + offset * reference_points[:, :, None, :, None, 2:] * 0.5
         else:
-            sampling_locs = reference_points[:, :, None, :, None, :2] + sampling_offsets/self.n_points*reference_points[:,:,None,:,None,2:]*0.5
+            raise ValueError(f"Unsupported reference_points shape: {reference_points.shape}")
         # deformable attention kernel
         if value.dtype == torch.float16:
             output = MSDeformAttnFunction.apply(value.to(torch.float32), input_spatial_shapes,
