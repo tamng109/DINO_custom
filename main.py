@@ -289,6 +289,28 @@ def main(args):
             for enc_layer in model.transformer.encoder.layers:
                 enc_layer.self_attn.hard_prune_heads(prune_ratio)
 
+            # 3) Rebuild optimizer để bao gồm đúng params sau prune
+            # rebuild optimizer inline
+            model_to_opt = model.module if hasattr(model, 'module') else model
+            param_dicts = get_param_dict(args, model_to_opt)
+            optimizer = torch.optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
+        
+            # nếu cần rebuild scheduler
+            if args.onecyclelr:
+                lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                    optimizer, max_lr=args.lr,
+                    steps_per_epoch=len(data_loader_train),
+                    epochs=args.epochs,
+                    pct_start=0.2
+                )
+            elif args.multi_step_lr:
+                lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                    optimizer, milestones=args.lr_drop_list
+                )
+            else:
+                lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                    optimizer, args.lr_drop
+                )
 
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
