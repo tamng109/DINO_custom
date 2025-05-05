@@ -269,7 +269,7 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
-    warmup_epochs = 3  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
+    warmup_epochs = 2  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
     prune_ratio = 0.25
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
@@ -284,13 +284,10 @@ def main(args):
         if not args.onecyclelr:
             lr_scheduler.step()
         # --- 3. Prune least-important heads trên encoder ---
-            # --- Bắt đầu prune từ epoch thứ 3 trở đi ---
+            # --- Bắt đầu prune từ epoch thứ 2 trở đi ---
         if epoch + 1 >= warmup_epochs:
             for enc_layer in model.transformer.encoder.layers:
-                # enc_layer.self_attn là instance của MSDeformAttn
-                attn = enc_layer.self_attn
-                attn.prune_least_important_heads(prune_ratio)
-                attn.head_importance.zero_()
+                enc_layer.self_attn.hard_prune_heads(prune_ratio)
 
 
         if args.output_dir:
