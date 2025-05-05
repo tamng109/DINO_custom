@@ -49,6 +49,9 @@ class MSDeformAttn(nn.Module):
         self.register_buffer('head_mask', torch.ones(n_heads, dtype=torch.bool))
         self.register_buffer('head_importance', torch.zeros(n_heads))
 
+        # flag to track importance accumulation
+        self.track_importance = True
+
     def _reset_parameters(self):
         constant_(self.sampling_offsets.weight, 0.)
         thetas = torch.arange(self.n_heads, dtype=torch.float32) * (2.0 * math.pi / self.n_heads)
@@ -91,6 +94,7 @@ class MSDeformAttn(nn.Module):
         _, prune_idx = torch.topk(importance, num_to_prune, largest=False)
         keep_idx = [h for h in range(self.n_heads) if h not in prune_idx.tolist()]
         new_h = len(keep_idx)
+        assert self.d_model % new_h == 0, f"d_model {self.d_model} must be divisible by new_n_heads {new_h}"
         new_hd = self.d_model // new_h
         # --- rebuild sampling_offsets ---
         per_off = self.n_levels * self.n_points * 2
@@ -111,7 +115,6 @@ class MSDeformAttn(nn.Module):
         self.attention_weights.weight.data.copy_(Wk)
         self.attention_weights.bias.data.copy_(bk)
         # --- update value & output projections ---
-        # For simplicity, reinitialize these layers and fine-tune
         self.value_proj = nn.Linear(self.d_model, self.d_model, bias=True)
         self.output_proj = nn.Linear(self.d_model, self.d_model, bias=True)
         xavier_uniform_(self.value_proj.weight)
@@ -123,7 +126,15 @@ class MSDeformAttn(nn.Module):
         self.head_dim = new_hd
         self.head_mask = self.head_mask[keep_idx].clone()
         self.head_importance = self.head_importance[keep_idx].clone()
+        # Reset importance tracking after hard prune
+        self.track_importance = False
         print(f"[MSDeformAttn] Hard-pruned to {new_h} heads.")
+
+    def get_active_heads(self):
+        """
+        Returns a list of active heads (those not pruned).
+        """
+        return torch.nonzero(self.head_mask).flatten().tolist()
 
     def forward(self, query, reference_points, input_flatten,
                 input_spatial_shapes, input_level_start_index,
@@ -140,21 +151,22 @@ class MSDeformAttn(nn.Module):
         sampling_offsets = self.sampling_offsets(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
         attention_weights = self.attention_weights(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
         # apply mask (soft)
-        head_mask = self.head_mask.view(1,1,self.n_heads,1,1)
-        attention_weights = attention_weights * head_mask
         attention_weights = F.softmax(attention_weights, -1)
         # accumulate importance
-        with torch.no_grad():
-            imp = attention_weights.abs().sum(dim=[1,3,4])  # (N, n_heads)
-            self.head_importance += imp.sum(dim=0)
+        if self.track_importance:
+            with torch.no_grad():
+                imp = attention_weights.abs().sum(dim=[1,3,4])  # (N, n_heads)
+                self.head_importance += imp.sum(dim=0)
         # compute sampling locations as before
-        if reference_points.shape[-1] == 2:
-            offset_norm = torch.stack([input_spatial_shapes[...,1], input_spatial_shapes[...,0]],-1)
-            sampling_locs = reference_points[:, :, None, :, None, :] + sampling_offsets/offset_norm[None,None,None,:,:,:]
+        if reference_points.shape[-1] == 2 and reference_points.ndim == 3:
+            reference_points = reference_points.unsqueeze(2).expand(-1, -1, self.n_levels, -1)
+            offset_norm = torch.stack([input_spatial_shapes[...,1], input_spatial_shapes[...,0]], -1)  # shape: (n_levels, 2)
+            offset_norm = offset_norm[None, None, None, :, None, :]  # (1, 1, 1, n_levels, 1, 2)
+            sampling_locs = reference_points[:, :, None, :, None, :] + sampling_offsets / offset_norm
         else:
             sampling_locs = reference_points[:, :, None, :, None, :2] + sampling_offsets/self.n_points*reference_points[:,:,None,:,None,2:]*0.5
         # deformable attention kernel
-        if value.dtype==torch.float16:
+        if value.dtype == torch.float16:
             output = MSDeformAttnFunction.apply(value.to(torch.float32), input_spatial_shapes,
                 input_level_start_index, sampling_locs.to(torch.float32), attention_weights, self.im2col_step)
             output = output.to(torch.float16)
