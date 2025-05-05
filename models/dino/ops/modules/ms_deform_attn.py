@@ -169,6 +169,22 @@ class MSDeformAttn(nn.Module):
             pass
         else:
             raise ValueError(f"Unsupported reference_points shape {tuple(reference_points.shape)}")
+        if reference_points.size(-1) == 2:
+            # offset normalization (n_levels,2) → (1,1,1,n_levels,1,2)
+            offset_norm = torch.stack([input_spatial_shapes[...,1], input_spatial_shapes[...,0]], -1)
+            offset_norm = offset_norm[None,None,None,:,None,:]
+            sampling_locs = reference_points[:, :, None, :, None, :] \
+                            + sampling_offsets / offset_norm
+        elif reference_points.size(-1) == 4:
+            # split x,y and w,h
+            xy = reference_points[..., :2]      # (N,L,n_levels,2)
+            wh = reference_points[..., 2:]      # (N,L,n_levels,2)
+            # (1,1,1,n_levels,2)
+            sampling_locs = xy[:, :, None, :, None, :] \
+                            + sampling_offsets / self.n_points * wh[:, :, None, :, None, :] * 0.5
+        else:
+            # không thể xảy ra do bước chuẩn hóa
+            raise RuntimeError
 
         # deformable attention kernel
         if value.dtype == torch.float16:
