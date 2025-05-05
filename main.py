@@ -269,6 +269,8 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
+
+    pruned = False
     warmup_epochs = 2  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
     prune_ratio = 0.25
     for epoch in range(args.start_epoch, args.epochs):
@@ -311,6 +313,7 @@ def main(args):
                 lr_scheduler = torch.optim.lr_scheduler.StepLR(
                     optimizer, args.lr_drop
                 )
+            pruned = True
 
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
