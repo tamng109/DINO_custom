@@ -285,7 +285,7 @@ def main(args):
             lr_scheduler.step()
         # --- 3. Prune least-important heads trên encoder ---
             # --- Bắt đầu prune từ epoch thứ 2 trở đi ---
-        if epoch + 1 >= warmup_epochs:
+        if epoch + 1 == warmup_epochs:
             for enc_layer in model.transformer.encoder.layers:
                 enc_layer.self_attn.hard_prune_heads(prune_ratio)
 
