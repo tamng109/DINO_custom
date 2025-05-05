@@ -272,7 +272,7 @@ def main(args):
 
     pruned = False
     warmup_epochs = 2  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
-    prune_ratio = 0.25
+    prune_ratio = 0.5
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
         if args.distributed:
