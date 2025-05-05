@@ -76,17 +76,17 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             scaler.scale(losses).backward()
             # cũng accumulate trong warm‑up
             if epoch < warmup_epochs:
-            with torch.no_grad():
-                # loop through all sub‐modules
-                for module in model.modules():
-                    if isinstance(module, MSDeformAttn):
-                        grad = module.attention_weights.weight.grad
-                        if grad is not None:
-                          # number of attention outputs per head
-                            per_att = module.n_levels * module.n_points
-                            for h in range(module.n_heads):
-                                head_grad = grad[:, h * per_att:(h + 1) * per_att]
-                                module.head_importance[h] += head_grad.abs().sum().item()
+                with torch.no_grad():
+                    # loop through all sub‐modules
+                    for module in model.modules():
+                        if isinstance(module, MSDeformAttn):
+                            grad = module.attention_weights.weight.grad
+                            if grad is not None:
+                              # number of attention outputs per head
+                                per_att = module.n_levels * module.n_points
+                                for h in range(module.n_heads):
+                                    head_grad = grad[:, h * per_att:(h + 1) * per_att]
+                                    module.head_importance[h] += head_grad.abs().sum().item()
                         
             scaler.unscale_(optimizer)
             if max_norm > 0:
