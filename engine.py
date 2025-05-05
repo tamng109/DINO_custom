@@ -76,18 +76,18 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             scaler.scale(losses).backward()
             # cũng accumulate trong warm‑up
             if epoch < warmup_epochs:
-                per_att = module.n_levels * module.n_points
+            with torch.no_grad():
+                # loop through all sub‐modules
                 for module in model.modules():
                     if isinstance(module, MSDeformAttn):
-                        grad = module.attention_weights.weight.grad  # shape=(new_h*per_att, d_model)
-                        if grad is None:
-                            continue
-                        # mỗi head h có per_att dòng liên tiếp
-                        for h in range(module.n_heads):
-                            start, end = h * per_att, (h + 1) * per_att
-                            head_grad = grad[start:end]          # block gradient của head h
-                            module.head_importance[h] += head_grad.abs().sum().item()
-                    
+                        grad = module.attention_weights.weight.grad
+                        if grad is not None:
+                          # number of attention outputs per head
+                            per_att = module.n_levels * module.n_points
+                            for h in range(module.n_heads):
+                                head_grad = grad[:, h * per_att:(h + 1) * per_att]
+                                module.head_importance[h] += head_grad.abs().sum().item()
+                        
             scaler.unscale_(optimizer)
             if max_norm > 0:
                 scaler.unscale_(optimizer)
@@ -99,17 +99,17 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             optimizer.zero_grad()
             losses.backward()
             if epoch < warmup_epochs:
-                per_att = module.n_levels * module.n_points
+            with torch.no_grad():
+                # loop through all sub‐modules
                 for module in model.modules():
                     if isinstance(module, MSDeformAttn):
-                        grad = module.attention_weights.weight.grad  # shape=(new_h*per_att, d_model)
-                        if grad is None:
-                            continue
-                        # mỗi head h có per_att dòng liên tiếp
-                        for h in range(module.n_heads):
-                            start, end = h * per_att, (h + 1) * per_att
-                            head_grad = grad[start:end]          # block gradient của head h
-                            module.head_importance[h] += head_grad.abs().sum().item()
+                        grad = module.attention_weights.weight.grad
+                        if grad is not None:
+                            # number of attention outputs per head
+                            per_att = module.n_levels * module.n_points
+                            for h in range(module.n_heads):
+                                head_grad = grad[:, h * per_att:(h + 1) * per_att]
+                                module.head_importance[h] += head_grad.abs().sum().item()
 
             if max_norm > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
