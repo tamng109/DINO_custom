@@ -209,7 +209,7 @@ def main(args):
         
     if args.resume:
         # 1) Load raw checkpoint
-        ckpt = torch.load(args.resume, map_location=args.device')
+        ckpt = torch.load(args.resume, map_location=args.device)
         pruned_flag = ckpt.get('pruned', False)
         prune_ratio = ckpt.get('prune_ratio', 0.0)
 
