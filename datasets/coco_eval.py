@@ -11,7 +11,8 @@ import contextlib
 import copy
 import numpy as np
 import torch
-
+np.float = float
+np.int   = int
 from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
 import pycocotools.mask as mask_util
