@@ -105,6 +105,8 @@ class MSDeformAttn(nn.Module):
         self.sampling_offsets = nn.Linear(self.d_model, new_h * per_off, bias=True)
         self.sampling_offsets.weight.data.copy_(Wk)
         self.sampling_offsets.bias.data.copy_(bk)
+        device = self.head_mask.device
+        self.sampling_offsets = self.sampling_offsets.to(device)
         # --- rebuild attention_weights ---
         per_att = self.n_levels * self.n_points
         W = self.attention_weights.weight.view(self.n_heads, per_att, self.d_model)
@@ -114,6 +116,7 @@ class MSDeformAttn(nn.Module):
         self.attention_weights = nn.Linear(self.d_model, new_h * per_att, bias=True)
         self.attention_weights.weight.data.copy_(Wk)
         self.attention_weights.bias.data.copy_(bk)
+        self.attention_weights = self.attention_weights.to(device)
         # --- update value & output projections ---
         self.value_proj = nn.Linear(self.d_model, self.d_model, bias=True)
         self.output_proj = nn.Linear(self.d_model, self.d_model, bias=True)
@@ -121,6 +124,8 @@ class MSDeformAttn(nn.Module):
         constant_(self.value_proj.bias, 0.)
         xavier_uniform_(self.output_proj.weight)
         constant_(self.output_proj.bias, 0.)
+        self.value_proj  = self.value_proj.to(device)
+        self.output_proj = self.output_proj.to(device)
         # update attributes and buffers
         self.n_heads = new_h
         self.head_dim = new_hd
