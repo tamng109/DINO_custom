@@ -118,14 +118,18 @@ class MSDeformAttn(nn.Module):
         self.attention_weights.bias.data.copy_(bk)
         self.attention_weights = self.attention_weights.to(device)
         # --- update value & output projections ---
-        self.value_proj = nn.Linear(self.d_model, self.d_model, bias=True)
-        self.output_proj = nn.Linear(self.d_model, self.d_model, bias=True)
-        xavier_uniform_(self.value_proj.weight)
-        constant_(self.value_proj.bias, 0.)
-        xavier_uniform_(self.output_proj.weight)
-        constant_(self.output_proj.bias, 0.)
-        self.value_proj  = self.value_proj.to(device)
-        self.output_proj = self.output_proj.to(device)
+        # --- update value_proj to reduce output dim ---
+        d_model_pruned = new_h * new_hd  # reduce output dim of value_proj
+        new_value_proj = nn.Linear(self.d_model, d_model_pruned, bias=True)
+        xavier_uniform_(new_value_proj.weight)
+        constant_(new_value_proj.bias, 0.)
+        self.value_proj = new_value_proj.to(device)
+        
+        # --- update output_proj accordingly ---
+        new_output_proj = nn.Linear(d_model_pruned, self.d_model, bias=True)
+        xavier_uniform_(new_output_proj.weight)
+        constant_(new_output_proj.bias, 0.)
+        self.output_proj = new_output_proj.to(device)
         # update attributes and buffers
         self.n_heads = new_h
         self.head_dim = new_hd
