@@ -206,24 +206,54 @@ def main(args):
     output_dir = Path(args.output_dir)
     if os.path.exists(os.path.join(args.output_dir, 'checkpoint.pth')):
         args.resume = os.path.join(args.output_dir, 'checkpoint.pth')
+        
     if args.resume:
-        if args.resume.startswith('https'):
-            checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location='cpu', check_hash=True)
-        else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        if args.use_ema:
-            if 'ema_model' in checkpoint:
-                ema_m.module.load_state_dict(utils.clean_state_dict(checkpoint['ema_model']))
-            else:
-                del ema_m
-                ema_m = ModelEma(model, args.ema_decay)                
+        # 1) Load raw checkpoint
+        ckpt = torch.load(args.resume, map_location=args.device')
+        pruned_flag = ckpt.get('pruned', False)
+        prune_ratio = ckpt.get('prune_ratio', 0.0)
 
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            args.start_epoch = checkpoint['epoch'] + 1
+        # 2) Nếu checkpoint đã prune, prune lại mô hình trước khi load weights
+        if pruned_flag:
+            for enc_layer in model_without_ddp.transformer.encoder.layers:
+                enc_layer.self_attn.hard_prune_heads(prune_ratio)
+            logger.info(f"Applied head pruning with ratio={prune_ratio} before loading weights.")
+
+        # 3) Rebuild optimizer trên mô hình (đã prune nếu có)
+        param_dicts = get_param_dict(args, model_without_ddp)
+        optimizer = torch.optim.AdamW(
+            param_dicts,
+            lr=args.lr * (0.1 if pruned_flag else 1.0),
+            weight_decay=args.weight_decay
+        )
+
+        # 4) Rebuild scheduler tương ứng
+        if args.onecyclelr:
+            lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                optimizer,
+                max_lr=args.lr * (0.1 if pruned_flag else 1.0),
+                steps_per_epoch=len(data_loader_train),
+                epochs=args.epochs - args.start_epoch,
+                pct_start=0.2
+            )
+        elif args.multi_step_lr:
+            lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                optimizer,
+                milestones=args.lr_drop_list
+            )
+        else:
+            lr_scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer,
+                args.lr_drop
+            )
+
+        # 5) Load state_dict cho model, optimizer, lr_scheduler và xác định start_epoch
+        model_without_ddp.load_state_dict(ckpt['model'])
+        optimizer.load_state_dict(ckpt['optimizer'])
+        lr_scheduler.load_state_dict(ckpt['lr_scheduler'])
+        args.start_epoch = ckpt['epoch'] + 1
+        logger.info(f"Resumed training from epoch {ckpt['epoch']} (pruned={pruned_flag}).")
+
 
     if (not args.resume) and args.pretrain_model_path:
         checkpoint = torch.load(args.pretrain_model_path, map_location='cpu')['model']
