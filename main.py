@@ -271,7 +271,7 @@ def main(args):
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
 
     pruned = False
-    warmup_epochs = 1  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
+    warmup_epochs = 0  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
     prune_ratio = 0.5
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
@@ -287,7 +287,7 @@ def main(args):
             lr_scheduler.step()
         # --- 3. Prune least-important heads trên encoder ---
             # --- Bắt đầu prune từ epoch thứ 2 trở đi ---
-        if epoch + 1 == warmup_epochs:
+        if epoch == warmup_epochs:
             for enc_layer in model.transformer.encoder.layers:
                 enc_layer.self_attn.hard_prune_heads(prune_ratio)
 
