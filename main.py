@@ -8,12 +8,10 @@ import time
 from pathlib import Path
 import os, sys
 import numpy as np
-np.float = float
-
 
 import torch
 from torch.utils.data import DataLoader, DistributedSampler
-from models.dino.attention import MultiheadAttention, multi_head_attention_forward
+
 from util.get_param_dicts import get_param_dict
 from util.logger import setup_logger
 from util.slconfig import DictAction, SLConfig
@@ -269,52 +267,18 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
-
-    pruned = False
-    warmup_epochs = 0  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
-    prune_ratio = 0.5
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None), ema_m=ema_m, warmup_epochs=warmup_epochs)
+            args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None), ema_m=ema_m)
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
 
         if not args.onecyclelr:
             lr_scheduler.step()
-        # --- 3. Prune least-important heads trên encoder ---
-            # --- Bắt đầu prune từ epoch thứ 2 trở đi ---
-        if epoch == warmup_epochs:
-            for enc_layer in model.transformer.encoder.layers:
-                enc_layer.self_attn.hard_prune_heads(prune_ratio)
-
-            # 3) Rebuild optimizer để bao gồm đúng params sau prune
-            # rebuild optimizer inline
-            model_to_opt = model.module if hasattr(model, 'module') else model
-            param_dicts = get_param_dict(args, model_to_opt)
-            optimizer = torch.optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
-        
-            # nếu cần rebuild scheduler
-            if args.onecyclelr:
-                lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-                    optimizer, max_lr=args.lr,
-                    steps_per_epoch=len(data_loader_train),
-                    epochs=args.epochs,
-                    pct_start=0.2
-                )
-            elif args.multi_step_lr:
-                lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-                    optimizer, milestones=args.lr_drop_list
-                )
-            else:
-                lr_scheduler = torch.optim.lr_scheduler.StepLR(
-                    optimizer, args.lr_drop
-                )
-            pruned = True
-
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs
