@@ -117,18 +117,21 @@ class MSDeformAttn(nn.Module):
         self.attention_weights.weight.data.copy_(Wk)
         self.attention_weights.bias.data.copy_(bk)
         self.attention_weights = self.attention_weights.to(device)
-        # --- update value & output projections ---
-        # --- update value_proj to reduce output dim ---
-        d_model_pruned = new_h * new_hd  # reduce output dim of value_proj
-        new_value_proj = nn.Linear(self.d_model, d_model_pruned, bias=True)
-        xavier_uniform_(new_value_proj.weight)
-        constant_(new_value_proj.bias, 0.)
+        # --- preserve old weights for value_proj & output_proj ---
+        # both old and new have shape [d_model, d_model]
+        old_value_w = self.value_proj.weight.data.clone()
+        old_value_b = self.value_proj.bias.data.clone()
+        # rebuild but keep same in/out dims
+        new_value_proj = nn.Linear(self.d_model, self.d_model, bias=True)
+        new_value_proj.weight.data.copy_(old_value_w)
+        new_value_proj.bias.data.copy_(old_value_b)
         self.value_proj = new_value_proj.to(device)
-        
-        # --- update output_proj accordingly ---
-        new_output_proj = nn.Linear(d_model_pruned, self.d_model, bias=True)
-        xavier_uniform_(new_output_proj.weight)
-        constant_(new_output_proj.bias, 0.)
+
+        old_output_w = self.output_proj.weight.data.clone()
+        old_output_b = self.output_proj.bias.data.clone()
+        new_output_proj = nn.Linear(self.d_model, self.d_model, bias=True)
+        new_output_proj.weight.data.copy_(old_output_w)
+        new_output_proj.bias.data.copy_(old_output_b)
         self.output_proj = new_output_proj.to(device)
         # update attributes and buffers
         self.n_heads = new_h
