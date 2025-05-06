@@ -327,6 +327,8 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
+                    'pruned': pruned,
+                    'prune_ratio': prune_ratio
                 }
                 if args.use_ema:
                     weights.update({
@@ -349,6 +351,8 @@ def main(args):
                 'lr_scheduler': lr_scheduler.state_dict(),
                 'epoch': epoch,
                 'args': args,
+                'pruned': pruned,
+                'prune_ratio': prune_ratio
             }, checkpoint_path)
         log_stats = {
             **{f'train_{k}': v for k, v in train_stats.items()},
@@ -372,6 +376,8 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
+                    'pruned': pruned,
+                    'prune_ratio': prune_ratio
                 }, checkpoint_path)
         log_stats.update(best_map_holder.summary())
 
