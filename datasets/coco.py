@@ -652,10 +652,8 @@ def build_vin(image_set, args):
     if os.environ.get('DATA_COPY_SHILONG') == 'INFO':
         preparing_dataset(dict(img_folder=img_folder, ann_file=ann_file), image_set, args)
 
-    try:
-        strong_aug = args.strong_aug
-    except:
-        strong_aug = True
+   
+    strong_aug = True
 
     dataset = CocoDetection(
         img_folder, ann_file,
