@@ -2,16 +2,16 @@ _base_ = ['coco_transformer.py']
 
 num_classes=14
 
-lr = 0.0001
+lr = 0.00005
 param_dict_type = 'default'
 lr_backbone = 1e-05
 lr_backbone_names = ['backbone.0']
 lr_linear_proj_names = ['reference_points', 'sampling_offsets']
 lr_linear_proj_mult = 0.1
 ddetr_lr_param = False
-batch_size = 2
+batch_size = 4
 weight_decay = 0.0001
-epochs = 10
+epochs = 2
 lr_drop = 11
 save_checkpoint_interval = 1
 clip_max_norm = 0.1
@@ -39,7 +39,7 @@ dim_feedforward = 2048
 hidden_dim = 256
 dropout = 0.0
 nheads = 8
-num_queries = 900
+num_queries = 30
 query_dim = 4
 num_patterns = 0
 pdetr3_bbox_embed_diff_each_layer = False
@@ -110,4 +110,3 @@ ema_decay = 0.9997
 ema_epoch = 0
 
 use_detached_boxes_dec_out = False
-
