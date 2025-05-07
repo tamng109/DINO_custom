@@ -655,7 +655,7 @@ def build_vin(image_set, args):
     try:
         strong_aug = args.strong_aug
     except:
-        strong_aug = False
+        strong_aug = True
 
     dataset = CocoDetection(
         img_folder, ann_file,
