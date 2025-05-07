@@ -301,7 +301,7 @@ def main(args):
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
 
     pruned = False
-    warmup_epochs = 0  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
+    warmup_epochs = 2  # không prune ở epoch 1–2, prune từ epoch 3 trở đi
     prune_ratio = 0.5
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
