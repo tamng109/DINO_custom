@@ -451,7 +451,7 @@ class ConvertCocoPolysToMask(object):
         return image, target
 
 
-def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None):
+def make_coco_transforms(image_set, fix_size=False, strong_aug=True, args=None):
 
     normalize = T.Compose([
         T.ToTensor(),
@@ -459,8 +459,8 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
     ])
 
     # config the params for data aug
-    scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
-    max_size = 1333
+    scales = [480, 544, 608, 672, 736, 800]
+    max_size = 1024
     scales2_resize = [400, 500, 600]
     scales2_crop = [384, 600]
     
@@ -506,12 +506,10 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
                     T.RandomResize(scales, max_size=max_size),
                     T.Compose([
                         T.RandomResize(scales2_resize),
-                        T.RandomSizeCrop(*scales2_crop),
                         T.RandomResize(scales, max_size=max_size),
                     ])
                 ),
                 SLT.RandomSelectMulti([
-                    SLT.RandomCrop(),
                     SLT.LightingNoise(),
                     SLT.AdjustBrightness(2),
                     SLT.AdjustContrast(2),
@@ -657,7 +655,7 @@ def build_vin(image_set, args):
     try:
         strong_aug = args.strong_aug
     except:
-        strong_aug = False
+        strong_aug = True
 
     dataset = CocoDetection(
         img_folder, ann_file,
