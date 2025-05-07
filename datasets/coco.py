@@ -459,7 +459,7 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=True, args=None):
     ])
 
     # config the params for data aug
-    scales = [480, , 544, 608, 672, 736, 800]
+    scales = [480, 544, 608, 672, 736, 800]
     max_size = 1024
     scales2_resize = [400, 500, 600]
     scales2_crop = [384, 600]
