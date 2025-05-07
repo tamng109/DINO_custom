@@ -502,13 +502,7 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=True, args=None):
             
             return T.Compose([
                 T.RandomHorizontalFlip(),
-                T.RandomSelect(
-                    T.RandomResize(scales, max_size=max_size),
-                    T.Compose([
-                        T.RandomResize(scales2_resize),
-                        T.RandomResize(scales, max_size=max_size),
-                    ])
-                ),
+                T.RandomResize(scales, max_size=max_size),
                 SLT.RandomSelectMulti([
                     SLT.LightingNoise(),
                     SLT.AdjustBrightness(2),
