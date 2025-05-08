@@ -210,7 +210,7 @@ def main(args):
     if args.resume:
         # 1) Load raw checkpoint
         ckpt = torch.load(args.resume, map_location=args.device)
-        pruned_flag = ckpt.get('pruned', False)
+        pruned_flag = True
         prune_ratio = ckpt.get('prune_ratio', 0.0)
 
         # 2) Nếu checkpoint đã prune, prune lại mô hình trước khi load weights
