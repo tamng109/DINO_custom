@@ -223,7 +223,7 @@ def main(args):
         param_dicts = get_param_dict(args, model_without_ddp)
         optimizer = torch.optim.AdamW(
             param_dicts,
-            lr=0.00005,
+            lr=args.lr,
             weight_decay=args.weight_decay
         )
 
@@ -253,6 +253,13 @@ def main(args):
         lr_scheduler.load_state_dict(ckpt['lr_scheduler'])
         args.start_epoch = ckpt['epoch'] + 1
         logger.info(f"Resumed training from epoch {ckpt['epoch']} (pruned={pruned_flag}).")
+        for g in optimizer.param_groups:
+            g['lr'] = args.lr
+    # Nếu scheduler kiểu StepLR/MultiStepLR, reset base_lrs:
+        if hasattr(lr_scheduler, 'base_lrs'):
+            lr_scheduler.base_lrs = [args.lr for _ in lr_scheduler.base_lrs]
+
+        logger.info(f"Resumed training from epoch {ckpt['epoch']} (pruned={pruned_flag}), LR reset to 5e-5.")
 
 
     if (not args.resume) and args.pretrain_model_path:
