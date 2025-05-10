@@ -223,7 +223,7 @@ def main(args):
         param_dicts = get_param_dict(args, model_without_ddp)
         optimizer = torch.optim.AdamW(
             param_dicts,
-            lr=args.lr * (0.1 if pruned_flag else 1.0),
+            lr=args.lr
             weight_decay=args.weight_decay
         )
 
