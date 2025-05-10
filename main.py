@@ -313,8 +313,8 @@ def main(args):
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
 
-        if not args.onecyclelr:
-            lr_scheduler.step()
+        # if not args.onecyclelr:
+        #     lr_scheduler.step()
         # --- 3. Prune least-important heads trên encoder ---
             # --- Bắt đầu prune từ epoch thứ 2 trở đi ---
         if epoch == warmup_epochs:
