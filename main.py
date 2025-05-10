@@ -231,7 +231,7 @@ def main(args):
         if args.onecyclelr:
             lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer,
-                max_lr=args.lr * (0.1 if pruned_flag else 1.0),
+                max_lr=args.lr,
                 steps_per_epoch=len(data_loader_train),
                 epochs=args.epochs - args.start_epoch,
                 pct_start=0.2
