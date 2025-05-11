@@ -418,6 +418,7 @@ def main(args):
                 }, checkpoint_path)
         log_stats.update(best_map_holder.summary())
 
+        n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
         ep_paras = {
                 'epoch': epoch,
                 'n_parameters': n_parameters
