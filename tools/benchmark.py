@@ -624,6 +624,8 @@ def benchmark():
 
     dataset = build_dataset("val", main_args)
     model, _, _ = build_model_main(main_args)
+    for enc_layer in model.transformer.encoder.layers:
+            enc_layer.self_attn.hard_prune_heads(0.5)
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     _outputs.update({"nparam": n_parameters})
 
